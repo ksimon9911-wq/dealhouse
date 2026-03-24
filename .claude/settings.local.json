@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//Users/a408587/Desktop/**)",
+      "Bash(zip -r dealhouse_backup.zip dealhouse -x \"dealhouse/node_modules/*\" -x \"dealhouse/.next/*\")"
+    ]
+  }
+}
