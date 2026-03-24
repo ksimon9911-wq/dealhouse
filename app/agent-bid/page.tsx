@@ -252,12 +252,14 @@ function AgentBidForm() {
             >
               <option value="">-- 매물을 선택하세요 --</option>
               {listings.map((listing) => {
+                const buildingName = listing.sell_building_name ?? listing.buy_building_name ?? ''
                 const addr = listing.sell_address ?? listing.buy_address ?? ''
                 const price = listing.sell_price ?? listing.buy_price ?? 0
+                const displayName = buildingName || addr
                 return (
                   <option key={listing.id} value={listing.id}>
                     [{PROPERTY_TYPE_LABEL[listing.property_type]} / {LISTING_TYPE_LABEL[listing.listing_type]}]{' '}
-                    {addr} · {formatPrice(price)}
+                    {displayName} · {formatPrice(price)}
                   </option>
                 )
               })}
