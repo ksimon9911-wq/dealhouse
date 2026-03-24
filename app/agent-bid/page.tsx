@@ -43,6 +43,8 @@ function AgentBidForm() {
   const [success, setSuccess] = useState(false)
   const [dashboardToken, setDashboardToken] = useState<string | null>(null)
   const [successListingId, setSuccessListingId] = useState<string | null>(null)
+  const [listingSearch, setListingSearch] = useState('')
+  const [commissionMode, setCommissionMode] = useState<'rate' | 'fixed'>('rate')
 
   const [agentForm, setAgentForm] = useState({
     name: '',
@@ -83,14 +85,26 @@ function AgentBidForm() {
     }
   }, [bidForm.listing_id, listings])
 
-  // Auto-calculate commission amount when rate or listing changes
+  // 요율 모드일 때 예상 수수료 자동 계산
   useEffect(() => {
-    if (selectedListing && bidForm.commission_rate) {
+    if (commissionMode === 'rate' && selectedListing && bidForm.commission_rate) {
       const basePrice = selectedListing.sell_price ?? selectedListing.buy_price ?? 0
       const amount = Math.round((basePrice * parseFloat(bidForm.commission_rate)) / 100)
       setBidForm((prev) => ({ ...prev, commission_amount: String(amount) }))
     }
-  }, [bidForm.commission_rate, selectedListing])
+  }, [bidForm.commission_rate, selectedListing, commissionMode])
+
+  const filteredListings = listings.filter((l) => {
+    if (!listingSearch.trim()) return true
+    const q = listingSearch.toLowerCase()
+    return (
+      (l.sell_building_name ?? '').toLowerCase().includes(q) ||
+      (l.buy_building_name ?? '').toLowerCase().includes(q) ||
+      (l.sell_address ?? '').toLowerCase().includes(q) ||
+      (l.buy_address ?? '').toLowerCase().includes(q) ||
+      ((l as unknown as Record<string, unknown>).listing_no as string ?? '').toLowerCase().includes(q)
+    )
+  })
 
   function handleAgentChange(e: React.ChangeEvent<HTMLInputElement>) {
     setAgentForm((prev) => ({ ...prev, [e.target.name]: e.target.value }))
@@ -243,27 +257,39 @@ function AgentBidForm() {
           </h2>
           <div>
             <label className={labelClass}>입찰할 매물 *</label>
+            <input
+              type="text"
+              value={listingSearch}
+              onChange={(e) => setListingSearch(e.target.value)}
+              placeholder="건물명, 주소, 관리번호로 검색..."
+              className={`${inputClass} mb-2`}
+            />
             <select
               name="listing_id"
               value={bidForm.listing_id}
               onChange={handleBidChange}
               required
               className={inputClass}
+              size={filteredListings.length > 0 && listingSearch ? Math.min(filteredListings.length + 1, 6) : 1}
             >
               <option value="">-- 매물을 선택하세요 --</option>
-              {listings.map((listing) => {
+              {filteredListings.map((listing) => {
                 const buildingName = listing.sell_building_name ?? listing.buy_building_name ?? ''
                 const addr = listing.sell_address ?? listing.buy_address ?? ''
-                const price = listing.sell_price ?? listing.buy_price ?? 0
+                const price = listing.sell_price ?? listing.buy_price ?? listing.deposit ?? 0
                 const displayName = buildingName || addr
+                const listingNo = (listing as unknown as Record<string, unknown>).listing_no as string
                 return (
                   <option key={listing.id} value={listing.id}>
-                    [{PROPERTY_TYPE_LABEL[listing.property_type]} / {LISTING_TYPE_LABEL[listing.listing_type]}]{' '}
-                    {displayName} · {formatPrice(price)}
+                    {listingNo ? `[${listingNo}] ` : ''}
+                    {displayName} · {PROPERTY_TYPE_LABEL[listing.property_type]} · {formatPrice(price)}
                   </option>
                 )
               })}
             </select>
+            {listingSearch && filteredListings.length === 0 && (
+              <p className="text-xs text-slate-400 mt-1">검색 결과가 없습니다.</p>
+            )}
             {listings.length === 0 && (
               <p className="text-xs text-slate-400 mt-2">
                 현재 입찰 가능한 매물이 없습니다.{' '}
@@ -431,39 +457,84 @@ function AgentBidForm() {
             입찰 조건
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-            <div>
-              <label className={labelClass}>중개보수율 (%) *</label>
-              <input
-                name="commission_rate"
-                type="number"
-                step="0.01"
-                min="0"
-                max="9"
-                value={bidForm.commission_rate}
-                onChange={handleBidChange}
-                required
-                placeholder="예: 0.4"
-                className={inputClass}
-              />
-              <p className="text-xs text-slate-400 mt-1">법정 최고 요율 이하로 입력해주세요</p>
-            </div>
-            <div>
-              <label className={labelClass}>예상 중개보수 (원)</label>
-              <input
-                name="commission_amount"
-                type="number"
-                value={bidForm.commission_amount}
-                onChange={handleBidChange}
-                placeholder="자동 계산됩니다"
-                className={`${inputClass} bg-slate-50`}
-              />
-              {selectedListing && bidForm.commission_rate && (
-                <p className="text-xs text-blue-600 mt-1">
-                  ≈ {formatPrice(Math.round(
-                    ((selectedListing.sell_price ?? selectedListing.buy_price ?? 0) *
-                      parseFloat(bidForm.commission_rate || '0')) / 100
-                  ))}
-                </p>
+            <div className="sm:col-span-2">
+              <label className={labelClass}>중개보수 제안 방식 *</label>
+              <div className="flex gap-2 mb-3">
+                {(['rate', 'fixed'] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => {
+                      setCommissionMode(mode)
+                      setBidForm((prev) => ({ ...prev, commission_rate: '', commission_amount: '' }))
+                    }}
+                    className={`flex-1 py-2.5 rounded-xl border text-sm font-semibold transition-all ${
+                      commissionMode === mode
+                        ? 'border-[#3182F6] bg-blue-50 text-[#3182F6]'
+                        : 'border-slate-200 text-slate-500 hover:border-slate-300'
+                    }`}
+                  >
+                    {mode === 'rate' ? '요율 (%)' : '정액 (원)'}
+                  </button>
+                ))}
+              </div>
+
+              {commissionMode === 'rate' ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1">중개보수율 (%)</label>
+                    <input
+                      name="commission_rate"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max="9"
+                      value={bidForm.commission_rate}
+                      onChange={handleBidChange}
+                      required={commissionMode === 'rate'}
+                      placeholder="예: 0.4"
+                      className={inputClass}
+                    />
+                    <p className="text-xs text-slate-400 mt-1">법정 최고 요율 이하로 입력해주세요</p>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1">예상 중개보수</label>
+                    <input
+                      name="commission_amount"
+                      type="number"
+                      value={bidForm.commission_amount}
+                      readOnly
+                      placeholder="요율 입력 시 자동 계산"
+                      className={`${inputClass} bg-slate-50 cursor-default`}
+                    />
+                    {selectedListing && bidForm.commission_rate && (
+                      <p className="text-xs text-blue-600 mt-1 font-semibold">
+                        ≈ {formatPrice(Math.round(
+                          ((selectedListing.sell_price ?? selectedListing.buy_price ?? selectedListing.deposit ?? 0) *
+                            parseFloat(bidForm.commission_rate || '0')) / 100
+                        ))}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-xs text-slate-500 mb-1">중개보수 정액 (원)</label>
+                  <input
+                    name="commission_amount"
+                    type="number"
+                    value={bidForm.commission_amount}
+                    onChange={handleBidChange}
+                    required={commissionMode === 'fixed'}
+                    placeholder="예: 1500000 (150만원)"
+                    className={inputClass}
+                  />
+                  {bidForm.commission_amount && (
+                    <p className="text-xs text-blue-600 mt-1 font-semibold">
+                      = {formatPrice(parseFloat(bidForm.commission_amount))}
+                    </p>
+                  )}
+                </div>
               )}
             </div>
             <div className="sm:col-span-2">

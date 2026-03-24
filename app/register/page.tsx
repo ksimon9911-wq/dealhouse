@@ -273,7 +273,16 @@ export default function RegisterPage() {
         }
       }
 
+      // 관리번호 생성: DH-YYMMDD-XXX
+      const now = new Date()
+      const datePart = now.getFullYear().toString().slice(2) +
+        String(now.getMonth() + 1).padStart(2, '0') +
+        String(now.getDate()).padStart(2, '0')
+      const randPart = Math.floor(Math.random() * 900 + 100)
+      const listing_no = `DH-${datePart}-${randPart}`
+
       const payload: Record<string, unknown> = {
+        listing_no,
         user_name: form.user_name,
         user_phone: form.user_phone,
         user_email: form.user_email,
