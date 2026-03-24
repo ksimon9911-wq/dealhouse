@@ -275,14 +275,17 @@ function AgentBidForm() {
               <option value="">-- 매물을 선택하세요 --</option>
               {filteredListings.map((listing) => {
                 const buildingName = listing.sell_building_name ?? listing.buy_building_name ?? ''
+                const dong = listing.sell_dong ?? listing.buy_dong ?? ''
+                const ho = listing.sell_ho ?? listing.buy_ho ?? ''
                 const addr = listing.sell_address ?? listing.buy_address ?? ''
                 const price = listing.sell_price ?? listing.buy_price ?? listing.deposit ?? 0
                 const displayName = buildingName || addr
+                const dongHo = [dong, ho].filter(Boolean).join(' ')
                 const listingNo = (listing as unknown as Record<string, unknown>).listing_no as string
                 return (
                   <option key={listing.id} value={listing.id}>
                     {listingNo ? `[${listingNo}] ` : ''}
-                    {displayName} · {PROPERTY_TYPE_LABEL[listing.property_type]} · {formatPrice(price)}
+                    {displayName}{dongHo ? ` ${dongHo}` : ''} · {PROPERTY_TYPE_LABEL[listing.property_type]} · {formatPrice(price)}
                   </option>
                 )
               })}
